@@ -17,7 +17,7 @@ public class ProcessingService : IProcessingService
 		// Important: The Credentials is Valid for 30 days and its a bad practice to have key in code only used for Assignment.
 		_client = new GitHubClient(new ProductHeaderValue("Finder"))
 		{
-			Credentials = new Credentials("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")
+			Credentials = new Credentials("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")
 		};
 	}
 
