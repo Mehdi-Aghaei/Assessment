@@ -14,10 +14,10 @@ public class ProcessingService : IProcessingService
 
 	public ProcessingService()
 	{
-		// Important: The Credentials is Valid for 30 days and its a bad practice to have key in code only used for Assignment.
+		// Important: The Credentials is Valid for 30 days and its a bad practice to have key in code only used for Assignment will be deleted after review.
 		_client = new GitHubClient(new ProductHeaderValue("Finder"))
 		{
-			Credentials = new Credentials("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UPUP")
+			Credentials = new Credentials("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")
 		};
 	}
 
