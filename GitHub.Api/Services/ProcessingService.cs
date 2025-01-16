@@ -12,12 +12,14 @@ public class ProcessingService : IProcessingService
 
 	private IOrderedEnumerable<KeyValuePair<char, int>>? _result;
 
-	public ProcessingService()
+	public ProcessingService(IConfiguration configuration)
 	{
-		// Important: The Credentials is Valid for 30 days and its a bad practice to have key in code only used for Assignment will be deleted after review.
+		// Important: YOU HAVE TO USE YOU OWN TOKEN, GENERATE IN GITHUB SETTING -> DEVELOPER SETTIN -> GENERATE TOKEN .
+		string token = configuration["GithubToken"] is not null ? configuration["GithubToken"]! : "YourToken";
+
 		_client = new GitHubClient(new ProductHeaderValue("Finder"))
 		{
-			Credentials = new Credentials("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")
+			Credentials = new Credentials(token)
 		};
 	}
 
