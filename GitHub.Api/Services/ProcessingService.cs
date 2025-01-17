@@ -1,4 +1,5 @@
-﻿using Octokit;
+﻿using System.Collections.Concurrent;
+using Octokit;
 
 namespace GitHub.Api.Services;
 
@@ -33,32 +34,18 @@ public class ProcessingService : IProcessingService
 				return _result;
 			}
 
-			var contents = await _client.Repository.Content.GetAllContents(Owner, RepositoryName);
-			List<RepositoryContent> jsTsFiles = await GetJsTsFilesAsync(contents);
+			var allContents = await _client.Repository.Content.GetAllContents(Owner, RepositoryName);
+			var jsTsFiles = await GetJsTsFilesAsync(allContents);
+			var mergeContent = await MergeContentAsync(jsTsFiles);
 
-			Console.WriteLine($"Found {jsTsFiles.Count} JavaScript/TypeScript file(s).");
-
-			var letterFrequency = new Dictionary<char, int>();
-			foreach (var file in jsTsFiles)
+			var letterFrequency = new ConcurrentDictionary<char, int>();
+			Parallel.ForEach(mergeContent, character =>
 			{
-				var content = await _client.Repository.Content.GetAllContents(Owner, RepositoryName, file.Path);
-
-				var fileContent = content[0].Content;
-				var contentSpan = fileContent.AsSpan();
-				for (var index = 0; index < contentSpan.Length; index++)
+				if (char.IsAsciiLetter(character))
 				{
-					var character = contentSpan[index];
-					if (char.IsAsciiLetter(character))
-					{
-						if (!letterFrequency.TryGetValue(character, out int count))
-						{
-							letterFrequency[character] = count;
-						}
-
-						letterFrequency[character] = ++count;
-					}
+					letterFrequency.AddOrUpdate(character, 1, (key, count) => count + 1);
 				}
-			}
+			});
 
 			_result = letterFrequency.OrderByDescending(kv => kv.Value);
 
@@ -67,14 +54,29 @@ public class ProcessingService : IProcessingService
 		catch (Exception ex)
 		{
 			Console.WriteLine($"Error: {ex.Message}");
-			throw;
+
+			throw new ServiceException(500, ex.Message);
 		}
 	}
 
-	private async Task<List<RepositoryContent>> GetJsTsFilesAsync(IReadOnlyList<RepositoryContent> contents)
+	private async Task<string> MergeContentAsync(RepositoryContent[] jsTsFiles)
 	{
-		var jsTsFiles = new List<RepositoryContent>();
-		foreach (var content in contents)
+		var fileContents = await Task.WhenAll(jsTsFiles.Select(async file =>
+		{
+			var content = await _client.Repository.Content.GetAllContents(Owner, RepositoryName, file.Path);
+
+			return content[0].Content;
+		}));
+
+		return string.Concat(fileContents);
+	}
+
+	private async Task<RepositoryContent[]> GetJsTsFilesAsync(IReadOnlyList<RepositoryContent> contents)
+	{
+		var jsTsFiles = new ConcurrentBag<RepositoryContent>();
+		var tasks = new List<Task>();
+
+		await Parallel.ForEachAsync(contents, async (content, _) =>
 		{
 			if (content.Type == ContentType.File && (content.Name.EndsWith(".js", StringComparison.OrdinalIgnoreCase) || content.Name.EndsWith(".ts", StringComparison.OrdinalIgnoreCase)))
 			{
@@ -83,12 +85,18 @@ public class ProcessingService : IProcessingService
 			else if (content.Type == ContentType.Dir)
 			{
 				var subContents = await _client.Repository.Content.GetAllContents(Owner, RepositoryName, content.Path);
-				var subFiles = await GetJsTsFilesAsync(subContents);
-
-				jsTsFiles.AddRange(subFiles);
+				tasks.Add(GetJsTsFilesAsync(subContents).ContinueWith(t =>
+				{
+					foreach (var subFile in t.Result)
+					{
+						jsTsFiles.Add(subFile);
+					}
+				}, _));
 			}
-		}
+		});
 
-		return jsTsFiles;
+		await Task.WhenAll(tasks);
+
+		return [.. jsTsFiles];
 	}
 }
