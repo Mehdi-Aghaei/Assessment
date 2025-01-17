@@ -33,7 +33,6 @@ public class ProcessingService : IProcessingService
 				return _result;
 			}
 
-			var repository = await _client.Repository.Get(Owner, RepositoryName);
 			var contents = await _client.Repository.Content.GetAllContents(Owner, RepositoryName);
 			List<RepositoryContent> jsTsFiles = await GetJsTsFilesAsync(contents);
 
@@ -45,16 +44,18 @@ public class ProcessingService : IProcessingService
 				var content = await _client.Repository.Content.GetAllContents(Owner, RepositoryName, file.Path);
 
 				var fileContent = content[0].Content;
-				foreach (var c in fileContent.AsSpan())
+				var contentSpan = fileContent.AsSpan();
+				for (var index = 0; index < contentSpan.Length; index++)
 				{
-					if (char.IsAsciiLetter(c))
+					var character = contentSpan[index];
+					if (char.IsAsciiLetter(character))
 					{
-						if (!letterFrequency.TryGetValue(c, out int count))
+						if (!letterFrequency.TryGetValue(character, out int count))
 						{
-							letterFrequency[c] = count;
+							letterFrequency[character] = count;
 						}
 
-						letterFrequency[c] = ++count;
+						letterFrequency[character] = ++count;
 					}
 				}
 			}
