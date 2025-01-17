@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Diagnostics;
+﻿using GitHub.Api.Exceptions;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 
 namespace GitHub.Api.Controllers
@@ -22,6 +23,11 @@ namespace GitHub.Api.Controllers
 
 			return exception switch
 			{
+				SecurityException securityException => Problem(
+					statusCode: securityException.StatusCode,
+					title: securityException.GetType().Name,
+					detail: securityException.ErrorMessage),
+
 				ServiceException serviceException => Problem(
 					statusCode: serviceException.StatusCode,
 					title: serviceException.GetType().Name,

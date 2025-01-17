@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using GitHub.Api.Exceptions;
 using Octokit;
 
 namespace GitHub.Api.Services;
@@ -36,14 +37,14 @@ public class ProcessingService : IProcessingService
 
 			var allContents = await _client.Repository.Content.GetAllContents(Owner, RepositoryName);
 			var jsTsFiles = await GetJsTsFilesAsync(allContents);
-			var mergeContent = await MergeContentAsync(jsTsFiles);
+			var mergedContent = await MergeContentAsync(jsTsFiles);
 
 			var letterFrequency = new ConcurrentDictionary<char, int>();
-			Parallel.ForEach(mergeContent, character =>
+			Parallel.ForEach(mergedContent, character =>
 			{
 				if (char.IsAsciiLetter(character))
 				{
-					letterFrequency.AddOrUpdate(character, 1, (key, count) => count + 1);
+					letterFrequency.AddOrUpdate(character, 1, (_, count) => count + 1);
 				}
 			});
 
@@ -51,10 +52,15 @@ public class ProcessingService : IProcessingService
 
 			return _result;
 		}
+		catch(Octokit.AuthorizationException ex)
+		{
+			// Example of how to handle exception from outside of the domain by creating proper exceptions (domain errors)
+			// we can Have multiple layer exception and have tryCatch in controller -> here is a over kill
+			throw new SecurityException(401, ex.Message);
+		}
 		catch (Exception ex)
 		{
-			Console.WriteLine($"Error: {ex.Message}");
-
+			// Wrap rest of Exception to increase security and keep informations in.
 			throw new ServiceException(500, ex.Message);
 		}
 	}
